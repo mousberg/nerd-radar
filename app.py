@@ -24,29 +24,37 @@ template = """
 {% endif %}
 """
 
-@app.route('/', methods=['GET', 'POST'])
+
+@app.route("/", methods=["GET", "POST"])
 def index():
     results = None
-    if request.method == 'POST':
-        author = request.form.get('author', '')
-        query = urllib.parse.quote(f'au:{author}')
-        url = f'http://export.arxiv.org/api/query?search_query={query}&start=0&max_results=5'
+    if request.method == "POST":
+        author = request.form.get("author", "")
+        query = urllib.parse.quote(f"au:{author}")
+        url = (
+            "http://export.arxiv.org/api/query?"
+            f"search_query={query}&start=0&max_results=5"
+        )
         try:
             with urllib.request.urlopen(url) as resp:
                 data = resp.read()
             root = ET.fromstring(data)
-            ns = {'atom': 'http://www.w3.org/2005/Atom', 'arxiv': 'http://arxiv.org/schemas/atom'}
-            entries = root.findall('atom:entry', ns)
+            ns = {
+                "atom": "http://www.w3.org/2005/Atom",
+                "arxiv": "http://arxiv.org/schemas/atom",
+            }
+            entries = root.findall("atom:entry", ns)
             results = []
             for e in entries:
-                author_el = e.find('atom:author', ns)
+                author_el = e.find("atom:author", ns)
                 if author_el is not None:
-                    name = author_el.findtext('atom:name', '', ns)
-                    email = author_el.findtext('arxiv:email', None, ns)
-                    results.append({'name': name, 'email': email})
+                    name = author_el.findtext("atom:name", "", ns)
+                    email = author_el.findtext("arxiv:email", None, ns)
+                    results.append({"name": name, "email": email})
         except Exception as e:
-            results = [{'name': 'Error', 'email': str(e)}]
+            results = [{"name": "Error", "email": str(e)}]
     return render_template_string(template, results=results)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     app.run(debug=True)
