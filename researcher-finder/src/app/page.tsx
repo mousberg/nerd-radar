@@ -19,6 +19,11 @@ import {
   MessageSquare,
   Copy,
   Loader2,
+  UserSearch,
+  Phone,
+  Globe,
+  MapPin,
+  Building,
 } from "lucide-react";
 
 interface ArXivPaper {
@@ -94,6 +99,17 @@ interface ConsoleLog {
   timestamp: Date;
 }
 
+interface ExtractedContacts {
+  email?: string;
+  phone?: string;
+  website?: string;
+  linkedin?: string;
+  twitter?: string;
+  office_address?: string;
+  department?: string;
+  additional_contacts?: string[];
+}
+
 export default function Home() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
@@ -133,6 +149,12 @@ export default function Home() {
     sortBy: "relevance",
     categories: [],
   });
+  const [extractedContacts, setExtractedContacts] = useState<
+    Record<string, ExtractedContacts>
+  >({});
+  const [extractingContacts, setExtractingContacts] = useState<string | null>(
+    null
+  );
 
   const addConsoleLog = (
     message: string,
@@ -278,6 +300,67 @@ export default function Home() {
       addConsoleLog(`📋 Message copied for ${researcherName}`, "success");
     } catch (error) {
       addConsoleLog(`❌ Failed to copy message`, "error");
+    }
+  };
+
+  const extractContacts = async (researcher: Researcher) => {
+    const researcherKey = `${researcher.name}-${researcher.institution}`;
+    setExtractingContacts(researcherKey);
+
+    try {
+      addConsoleLog(
+        `🔍 Starting contact extraction for ${researcher.name}...`,
+        "info"
+      );
+      addConsoleLog("🤖 Submitting browser automation task...", "info");
+
+      const response = await fetch("/api/extract-contacts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ researcher }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to extract contacts");
+      }
+
+      addConsoleLog("⏳ Task submitted, polling for completion...", "info");
+      addConsoleLog(
+        "🌐 Browser automation launched, visiting profile...",
+        "info"
+      );
+      addConsoleLog("⏱️ This may take 1-4 minutes to complete...", "info");
+
+      const data = await response.json();
+
+      setExtractedContacts((prev) => ({
+        ...prev,
+        [researcherKey]: data.contacts,
+      }));
+
+      // Count how many contact methods were found
+      const contactCount = Object.values(data.contacts).filter(Boolean).length;
+
+      if (contactCount > 0) {
+        addConsoleLog(
+          `✅ Found ${contactCount} contact method(s) for ${researcher.name}`,
+          "success"
+        );
+      } else {
+        addConsoleLog(
+          `⚠️ No contact details found for ${researcher.name}`,
+          "warning"
+        );
+      }
+    } catch (error) {
+      const errorMsg =
+        error instanceof Error ? error.message : "An error occurred";
+      addConsoleLog(`❌ Failed to extract contacts: ${errorMsg}`, "error");
+    } finally {
+      setExtractingContacts(null);
     }
   };
 
@@ -724,7 +807,7 @@ export default function Home() {
 
                             {/* Message Generation Section */}
                             <div className="mt-3 border-t border-white/10 pt-3">
-                              <div className="flex items-center gap-2">
+                              <div className="flex flex-wrap items-center gap-2 mb-3">
                                 {!hasMessage ? (
                                   <button
                                     onClick={() => generateMessage(researcher)}
@@ -744,7 +827,7 @@ export default function Home() {
                                     )}
                                   </button>
                                 ) : (
-                                  <div className="flex items-center gap-2 w-full">
+                                  <div className="flex items-center gap-2">
                                     <button
                                       onClick={() =>
                                         toggleMessageExpansion(researcherKey)
@@ -774,6 +857,27 @@ export default function Home() {
                                     </button>
                                   </div>
                                 )}
+
+                                {/* Contact Extraction Button */}
+                                <button
+                                  onClick={() => extractContacts(researcher)}
+                                  disabled={
+                                    extractingContacts === researcherKey
+                                  }
+                                  className="flex items-center gap-2 px-3 py-1.5 bg-blue-400/20 text-blue-700 rounded-full text-xs font-semibold hover:bg-blue-400/30 transition-all backdrop-blur-sm border border-blue-200/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  {extractingContacts === researcherKey ? (
+                                    <>
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                      Extracting...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <UserSearch className="w-3 h-3" />
+                                      Extract Contacts
+                                    </>
+                                  )}
+                                </button>
                               </div>
 
                               {/* Collapsible Message Display */}
@@ -795,6 +899,121 @@ export default function Home() {
                                   </div>
                                   <div className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap bg-white/20 p-3 rounded-lg border border-white/20">
                                     {hasMessage}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Extracted Contacts Display */}
+                              {extractedContacts[researcherKey] && (
+                                <div className="mt-3 p-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl">
+                                  <h5 className="text-xs font-semibold text-blue-700 mb-3 flex items-center gap-2">
+                                    <UserSearch className="w-3 h-3" />
+                                    Extracted Contact Details
+                                  </h5>
+                                  <div className="space-y-2">
+                                    {extractedContacts[researcherKey].email && (
+                                      <div className="flex items-center gap-2 text-xs">
+                                        <Mail className="w-3 h-3 text-emerald-600" />
+                                        <a
+                                          href={`mailto:${extractedContacts[researcherKey].email}`}
+                                          className="text-emerald-700 hover:text-emerald-800 font-medium truncate"
+                                        >
+                                          {
+                                            extractedContacts[researcherKey]
+                                              .email
+                                          }
+                                        </a>
+                                      </div>
+                                    )}
+                                    {extractedContacts[researcherKey].phone && (
+                                      <div className="flex items-center gap-2 text-xs">
+                                        <Phone className="w-3 h-3 text-blue-600" />
+                                        <a
+                                          href={`tel:${extractedContacts[researcherKey].phone}`}
+                                          className="text-blue-700 hover:text-blue-800 font-medium"
+                                        >
+                                          {
+                                            extractedContacts[researcherKey]
+                                              .phone
+                                          }
+                                        </a>
+                                      </div>
+                                    )}
+                                    {extractedContacts[researcherKey]
+                                      .website && (
+                                      <div className="flex items-center gap-2 text-xs">
+                                        <Globe className="w-3 h-3 text-purple-600" />
+                                        <a
+                                          href={
+                                            extractedContacts[researcherKey]
+                                              .website
+                                          }
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-purple-700 hover:text-purple-800 font-medium truncate"
+                                        >
+                                          Website
+                                        </a>
+                                      </div>
+                                    )}
+                                    {extractedContacts[researcherKey]
+                                      .linkedin && (
+                                      <div className="flex items-center gap-2 text-xs">
+                                        <Users className="w-3 h-3 text-blue-600" />
+                                        <a
+                                          href={
+                                            extractedContacts[researcherKey]
+                                              .linkedin
+                                          }
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-blue-700 hover:text-blue-800 font-medium"
+                                        >
+                                          LinkedIn
+                                        </a>
+                                      </div>
+                                    )}
+                                    {extractedContacts[researcherKey]
+                                      .twitter && (
+                                      <div className="flex items-center gap-2 text-xs">
+                                        <MessageSquare className="w-3 h-3 text-cyan-600" />
+                                        <a
+                                          href={
+                                            extractedContacts[researcherKey]
+                                              .twitter
+                                          }
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-cyan-700 hover:text-cyan-800 font-medium"
+                                        >
+                                          Twitter/X
+                                        </a>
+                                      </div>
+                                    )}
+                                    {extractedContacts[researcherKey]
+                                      .office_address && (
+                                      <div className="flex items-start gap-2 text-xs">
+                                        <MapPin className="w-3 h-3 text-red-600 mt-0.5" />
+                                        <span className="text-red-700 font-medium">
+                                          {
+                                            extractedContacts[researcherKey]
+                                              .office_address
+                                          }
+                                        </span>
+                                      </div>
+                                    )}
+                                    {extractedContacts[researcherKey]
+                                      .department && (
+                                      <div className="flex items-center gap-2 text-xs">
+                                        <Building className="w-3 h-3 text-gray-600" />
+                                        <span className="text-gray-700 font-medium">
+                                          {
+                                            extractedContacts[researcherKey]
+                                              .department
+                                          }
+                                        </span>
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               )}
