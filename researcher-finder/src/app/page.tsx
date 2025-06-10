@@ -412,7 +412,8 @@ export default function Home() {
         <div className="flex gap-8">
           {/* Left Sidebar - Console */}
           <div className="w-80 shrink-0">
-            <div className="sticky top-8">
+            <div className="sticky top-8 space-y-8">
+              {/* Console */}
               <div className="bg-emerald-900/10 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 p-6 font-mono text-sm">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
@@ -490,10 +491,8 @@ export default function Home() {
                   <div ref={consoleEndRef} />
                 </div>
               </div>
-            </div>
 
-            {/* Favorites Box */}
-            <div className="mt-8 sticky top-8">
+              {/* Favorites Box */}
               <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 overflow-hidden">
                 <div className="bg-gradient-to-r from-purple-400/20 to-pink-400/20 backdrop-blur-xl p-6 border-b border-white/10">
                   <div className="flex items-center gap-3">
