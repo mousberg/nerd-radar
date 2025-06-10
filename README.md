@@ -1,1 +1,1 @@
-# talent-finder
+# nerd-radar
