@@ -1,0 +1,11 @@
+Flask==2.3.3
+# OpenAI is optional - for AI-powered search query generation
+openai>=1.0.0
+
+# PDF processing libraries for first-page analysis
+pdfplumber>=0.9.0
+
+# Optional: Advanced NLP libraries
+# nltk>=3.8
+# spacy>=3.6.0
+# transformers>=4.30.0 
