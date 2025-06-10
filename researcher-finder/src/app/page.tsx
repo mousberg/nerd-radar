@@ -11,6 +11,8 @@ import {
   GraduationCap,
   Calendar,
   ArrowRight,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 
 interface ArXivPaper {
@@ -18,6 +20,20 @@ interface ArXivPaper {
   published: string;
   arxiv_id: string;
   link: string;
+}
+
+interface GoogleScholarProfile {
+  name: string;
+  title?: string;
+  affiliation?: string;
+  cited_by?: number;
+  profile_link?: string;
+  research_interests?: string[];
+  recent_papers?: {
+    title: string;
+    year?: string;
+    cited_by?: number;
+  }[];
 }
 
 interface Researcher {
@@ -33,6 +49,7 @@ interface Researcher {
   arxiv_papers: ArXivPaper[];
   paper_count: number;
   additional_contacts: string[];
+  google_scholar_info?: GoogleScholarProfile;
 }
 
 interface Paper {
@@ -59,11 +76,12 @@ interface AnalysisResult {
 export default function Home() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
+  const [analyzingPaper, setAnalyzingPaper] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<SearchResult | null>(null);
-  const [analysisResults, setAnalysisResults] = useState<AnalysisResult | null>(
-    null
-  );
+  const [paperAnalysisResults, setPaperAnalysisResults] = useState<
+    Record<string, AnalysisResult>
+  >({});
+  const [expandedPapers, setExpandedPapers] = useState<Set<string>>(new Set());
   const [error, setError] = useState("");
 
   const searchPapers = async () => {
@@ -72,7 +90,8 @@ export default function Home() {
     setLoading(true);
     setError("");
     setSearchResults(null);
-    setAnalysisResults(null);
+    setPaperAnalysisResults({});
+    setExpandedPapers(new Set());
 
     try {
       const response = await fetch("/api/search-papers", {
@@ -96,10 +115,9 @@ export default function Home() {
     }
   };
 
-  const analyzeResearchers = async (pdfUrl: string) => {
-    setAnalyzing(true);
+  const analyzeResearchers = async (pdfUrl: string, paperId: string) => {
+    setAnalyzingPaper(paperId);
     setError("");
-    setAnalysisResults(null);
 
     try {
       const response = await fetch("/api/analyze-researchers", {
@@ -115,14 +133,73 @@ export default function Home() {
       }
 
       const data: AnalysisResult = await response.json();
-      setAnalysisResults(data);
+
+      // Try to enhance with Google Scholar data, but don't fail if SerpApi is unavailable
+      if (data.researchers.length > 0) {
+        try {
+          console.log(
+            "Attempting to enhance researchers with Google Scholar data..."
+          );
+          const scholarResponse = await fetch("/api/google-scholar", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ researchers: data.researchers }),
+          });
+
+          if (scholarResponse.ok) {
+            const scholarData = await scholarResponse.json();
+            data.researchers = scholarData.researchers;
+            console.log(
+              "Successfully enhanced researchers with Google Scholar data"
+            );
+          } else {
+            console.warn(
+              "Google Scholar API returned error:",
+              scholarResponse.status,
+              scholarResponse.statusText
+            );
+            console.log(
+              "Continuing with researchers without Google Scholar enhancement"
+            );
+          }
+        } catch (error) {
+          console.error(
+            "Failed to fetch Google Scholar data (SerpApi may be unavailable):",
+            error
+          );
+          console.log(
+            "Continuing with researchers without Google Scholar enhancement"
+          );
+        }
+      }
+
+      setPaperAnalysisResults((prev) => ({
+        ...prev,
+        [paperId]: data,
+      }));
+
+      setExpandedPapers((prev) => new Set([...prev, paperId]));
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "An error occurred during analysis"
       );
     } finally {
-      setAnalyzing(false);
+      setAnalyzingPaper(null);
     }
+  };
+
+  const togglePaperExpansion = (paperId: string) => {
+    setExpandedPapers((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(paperId)) {
+        newSet.delete(paperId);
+      } else {
+        newSet.add(paperId);
+      }
+      return newSet;
+    });
   };
 
   const examplePrompts = [
@@ -231,10 +308,10 @@ export default function Home() {
                 {searchResults.papers.map((paper, index) => (
                   <div
                     key={paper.id}
-                    className="border border-slate-200 rounded-lg p-5"
+                    className="border border-slate-200 rounded-lg"
                   >
                     {/* Paper Header */}
-                    <div className="mb-4">
+                    <div className="p-5">
                       <h4 className="text-lg font-medium text-slate-900 mb-2">
                         {paper.title}
                       </h4>
@@ -252,254 +329,420 @@ export default function Home() {
                           <span>{paper.id}</span>
                         </div>
                       </div>
-                      <p className="text-slate-700 text-sm leading-relaxed">
+                      <p className="text-slate-700 text-sm leading-relaxed mb-4">
                         {paper.summary.length > 300
                           ? `${paper.summary.substring(0, 300)}...`
                           : paper.summary}
                       </p>
-                    </div>
 
-                    {/* Action Buttons */}
-                    <div className="flex items-center gap-3">
-                      <a
-                        href={paper.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 text-sm font-medium flex items-center gap-2"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                        View Paper
-                      </a>
-
-                      {paper.pdf_url && (
-                        <button
-                          onClick={() => analyzeResearchers(paper.pdf_url!)}
-                          disabled={analyzing}
-                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium flex items-center gap-2"
+                      {/* Action Buttons */}
+                      <div className="flex items-center gap-3">
+                        <a
+                          href={paper.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 text-sm font-medium flex items-center gap-2"
                         >
-                          {analyzing ? (
-                            <>
-                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                              Analyzing...
-                            </>
-                          ) : (
-                            <>
-                              <Users className="w-4 h-4" />
-                              Find Researchers
-                            </>
-                          )}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+                          <ExternalLink className="w-4 h-4" />
+                          View Paper
+                        </a>
 
-        {/* Analysis Results */}
-        {analysisResults && (
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              Researchers Found
-            </h2>
-            <p className="text-gray-600 mb-4">
-              From: {analysisResults.paper_title || "Selected Paper"}
-            </p>
-
-            {analysisResults.researchers.length === 0 ? (
-              <p className="text-gray-500">
-                No researchers found in this paper.
-              </p>
-            ) : (
-              <div className="grid gap-6">
-                {analysisResults.researchers.map((researcher, index) => (
-                  <div
-                    key={index}
-                    className="border border-gray-200 rounded-lg p-6 bg-gray-50"
-                  >
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <h3 className="text-xl font-semibold text-gray-900 mb-1">
-                          {researcher.name}
-                        </h3>
-                        {researcher.paper_count > 0 && (
-                          <p className="text-sm text-blue-600 font-medium mb-2">
-                            📚 {researcher.paper_count} ArXiv Papers Published
-                          </p>
+                        {paper.pdf_url && (
+                          <button
+                            onClick={() =>
+                              analyzeResearchers(paper.pdf_url!, paper.id)
+                            }
+                            disabled={analyzingPaper === paper.id}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium flex items-center gap-2"
+                          >
+                            {analyzingPaper === paper.id ? (
+                              <>
+                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                Analyzing...
+                              </>
+                            ) : (
+                              <>
+                                <Users className="w-4 h-4" />
+                                Find Researchers
+                              </>
+                            )}
+                          </button>
                         )}
-                        {researcher.institution && (
-                          <p className="text-gray-600 mb-2">
-                            {researcher.institution}
-                          </p>
+
+                        {paperAnalysisResults[paper.id] && (
+                          <button
+                            onClick={() => togglePaperExpansion(paper.id)}
+                            className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 text-sm font-medium flex items-center gap-2"
+                          >
+                            {expandedPapers.has(paper.id) ? (
+                              <>
+                                <ChevronDown className="w-4 h-4" />
+                                Hide Researchers
+                              </>
+                            ) : (
+                              <>
+                                <ChevronRight className="w-4 h-4" />
+                                Show Researchers (
+                                {
+                                  paperAnalysisResults[paper.id].researchers
+                                    .length
+                                }
+                                )
+                              </>
+                            )}
+                          </button>
                         )}
                       </div>
                     </div>
 
-                    {/* Research Areas */}
-                    {researcher.research_areas.length > 0 && (
-                      <div className="mb-4">
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">
-                          Research Areas:
-                        </h4>
-                        <div className="flex flex-wrap gap-2">
-                          {researcher.research_areas.map((area, idx) => (
-                            <span
-                              key={idx}
-                              className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
-                            >
-                              {area}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* ArXiv Papers */}
-                    {researcher.arxiv_papers.length > 0 && (
-                      <div className="mb-4">
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">
-                          Recent ArXiv Papers:
-                        </h4>
-                        <div className="space-y-2 max-h-60 overflow-y-auto">
-                          {researcher.arxiv_papers
-                            .slice(0, 5)
-                            .map((paper, idx) => (
-                              <div
-                                key={idx}
-                                className="p-3 bg-white rounded border border-gray-200"
-                              >
-                                <h5 className="text-sm font-medium text-gray-900 mb-1">
-                                  <a
-                                    href={paper.link}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="hover:text-blue-600"
-                                  >
-                                    {paper.title}
-                                  </a>
-                                </h5>
-                                <p className="text-xs text-gray-500">
-                                  {paper.published} • {paper.arxiv_id}
-                                </p>
-                              </div>
-                            ))}
-                          {researcher.arxiv_papers.length > 5 && (
-                            <p className="text-xs text-gray-500 text-center">
-                              ... and {researcher.arxiv_papers.length - 5} more
-                              papers
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Contact Information */}
-                    <div className="space-y-3">
-                      <h4 className="text-sm font-medium text-gray-700">
-                        Contact & Profiles:
-                      </h4>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {/* Email */}
-                        {researcher.email && (
-                          <a
-                            href={`mailto:${researcher.email}`}
-                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-                          >
-                            <span>📧</span>
-                            Email Contact
-                          </a>
-                        )}
-
-                        {/* LinkedIn */}
-                        {researcher.linkedin && (
-                          <a
-                            href={researcher.linkedin}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 px-4 py-2 bg-blue-800 text-white rounded hover:bg-blue-900 text-sm"
-                          >
-                            <span>💼</span>
-                            LinkedIn
-                          </a>
-                        )}
-
-                        {/* Google Scholar */}
-                        {researcher.google_scholar && (
-                          <a
-                            href={researcher.google_scholar}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
-                          >
-                            <span>🎓</span>
-                            Google Scholar
-                          </a>
-                        )}
-
-                        {/* ResearchGate */}
-                        {researcher.researchgate && (
-                          <a
-                            href={researcher.researchgate}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
-                          >
-                            <span>🔬</span>
-                            ResearchGate
-                          </a>
-                        )}
-
-                        {/* ORCID */}
-                        {researcher.orcid && (
-                          <a
-                            href={`https://orcid.org/${researcher.orcid}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 px-4 py-2 bg-green-700 text-white rounded hover:bg-green-800 text-sm"
-                          >
-                            <span>🆔</span>
-                            ORCID
-                          </a>
-                        )}
-
-                        {/* Website */}
-                        {researcher.website && (
-                          <a
-                            href={researcher.website}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 text-sm"
-                          >
-                            <span>🌐</span>
-                            Website
-                          </a>
-                        )}
-                      </div>
-
-                      {/* Additional Contacts */}
-                      {researcher.additional_contacts.length > 0 && (
-                        <div className="mt-3">
-                          <h5 className="text-xs font-medium text-gray-600 mb-2">
-                            Additional Contacts:
-                          </h5>
-                          <div className="space-y-1">
-                            {researcher.additional_contacts.map(
-                              (contact, idx) => (
-                                <p
-                                  key={idx}
-                                  className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded"
-                                >
-                                  {contact}
-                                </p>
+                    {/* Researcher Results - Tree-like expansion under specific paper */}
+                    {paperAnalysisResults[paper.id] &&
+                      expandedPapers.has(paper.id) && (
+                        <div className="border-t border-slate-200 bg-slate-50">
+                          <div className="p-5">
+                            <h5 className="text-lg font-medium text-slate-900 mb-4 flex items-center gap-2">
+                              <Users className="w-5 h-5" />
+                              Researchers Found (
+                              {
+                                paperAnalysisResults[paper.id].researchers
+                                  .length
+                              }
                               )
+                            </h5>
+
+                            {paperAnalysisResults[paper.id].researchers
+                              .length === 0 ? (
+                              <p className="text-slate-500">
+                                No researchers found in this paper.
+                              </p>
+                            ) : (
+                              <div className="space-y-4">
+                                {paperAnalysisResults[paper.id].researchers.map(
+                                  (researcher, idx) => (
+                                    <div
+                                      key={idx}
+                                      className="bg-white border border-slate-200 rounded-lg p-4"
+                                    >
+                                      <div className="flex justify-between items-start mb-3">
+                                        <div>
+                                          <h6 className="text-lg font-semibold text-slate-900 mb-1">
+                                            {researcher.name}
+                                          </h6>
+                                          {researcher.paper_count > 0 && (
+                                            <p className="text-sm text-blue-600 font-medium mb-1">
+                                              📚 {researcher.paper_count} ArXiv
+                                              Papers Published
+                                            </p>
+                                          )}
+                                          {researcher.institution && (
+                                            <p className="text-slate-600 mb-2">
+                                              <Building2 className="w-4 h-4 inline mr-1" />
+                                              {researcher.institution}
+                                            </p>
+                                          )}
+                                          {researcher.google_scholar_info ? (
+                                            <div className="text-sm text-slate-600 mb-2">
+                                              <GraduationCap className="w-4 h-4 inline mr-1" />
+                                              Google Scholar Profile Found
+                                              {researcher.google_scholar_info
+                                                .cited_by && (
+                                                <span className="ml-2 text-blue-600 font-medium">
+                                                  •{" "}
+                                                  {researcher.google_scholar_info.cited_by.toLocaleString()}{" "}
+                                                  citations
+                                                </span>
+                                              )}
+                                              {researcher.google_scholar_info
+                                                .title && (
+                                                <div className="text-xs text-slate-500 mt-1">
+                                                  {
+                                                    researcher
+                                                      .google_scholar_info.title
+                                                  }
+                                                </div>
+                                              )}
+                                            </div>
+                                          ) : (
+                                            <div className="text-xs text-slate-500 mb-2">
+                                              💡 Google Scholar data unavailable
+                                              (SerpApi service may be down)
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* Google Scholar Research Interests */}
+                                      {researcher.google_scholar_info &&
+                                        researcher.google_scholar_info
+                                          .research_interests &&
+                                        researcher.google_scholar_info
+                                          .research_interests.length > 0 && (
+                                          <div className="mb-3">
+                                            <h6 className="text-sm font-medium text-slate-700 mb-2">
+                                              Google Scholar Research Interests:
+                                            </h6>
+                                            <div className="flex flex-wrap gap-2">
+                                              {researcher.google_scholar_info.research_interests.map(
+                                                (interest, interestIdx) => (
+                                                  <span
+                                                    key={interestIdx}
+                                                    className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm"
+                                                  >
+                                                    {interest}
+                                                  </span>
+                                                )
+                                              )}
+                                            </div>
+                                          </div>
+                                        )}
+
+                                      {/* Research Areas */}
+                                      {researcher.research_areas.length > 0 && (
+                                        <div className="mb-3">
+                                          <h6 className="text-sm font-medium text-slate-700 mb-2">
+                                            Research Areas:
+                                          </h6>
+                                          <div className="flex flex-wrap gap-2">
+                                            {researcher.research_areas.map(
+                                              (area, areaIdx) => (
+                                                <span
+                                                  key={areaIdx}
+                                                  className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
+                                                >
+                                                  {area}
+                                                </span>
+                                              )
+                                            )}
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* Google Scholar Papers */}
+                                      {researcher.google_scholar_info &&
+                                        researcher.google_scholar_info
+                                          .recent_papers &&
+                                        researcher.google_scholar_info
+                                          .recent_papers.length > 0 && (
+                                          <div className="mb-3">
+                                            <h6 className="text-sm font-medium text-slate-700 mb-2">
+                                              Recent Google Scholar Papers:
+                                            </h6>
+                                            <div className="space-y-2 max-h-48 overflow-y-auto">
+                                              {researcher.google_scholar_info.recent_papers
+                                                .slice(0, 3)
+                                                .map(
+                                                  (scholarPaper, paperIdx) => (
+                                                    <div
+                                                      key={paperIdx}
+                                                      className="p-2 bg-blue-50 rounded border border-blue-200"
+                                                    >
+                                                      <h6 className="text-sm font-medium text-slate-900 mb-1">
+                                                        {scholarPaper.title}
+                                                      </h6>
+                                                      <div className="flex items-center gap-2 text-xs text-slate-500">
+                                                        {scholarPaper.year && (
+                                                          <span>
+                                                            {scholarPaper.year}
+                                                          </span>
+                                                        )}
+                                                        {scholarPaper.cited_by && (
+                                                          <span>
+                                                            •{" "}
+                                                            {scholarPaper.cited_by.toLocaleString()}{" "}
+                                                            citations
+                                                          </span>
+                                                        )}
+                                                      </div>
+                                                    </div>
+                                                  )
+                                                )}
+                                              {researcher.google_scholar_info
+                                                .recent_papers.length > 3 && (
+                                                <p className="text-xs text-slate-500 text-center">
+                                                  ... and{" "}
+                                                  {researcher
+                                                    .google_scholar_info
+                                                    .recent_papers.length -
+                                                    3}{" "}
+                                                  more papers
+                                                </p>
+                                              )}
+                                            </div>
+                                          </div>
+                                        )}
+
+                                      {/* ArXiv Papers */}
+                                      {researcher.arxiv_papers.length > 0 && (
+                                        <div className="mb-3">
+                                          <h6 className="text-sm font-medium text-slate-700 mb-2">
+                                            Recent ArXiv Papers:
+                                          </h6>
+                                          <div className="space-y-2 max-h-48 overflow-y-auto">
+                                            {researcher.arxiv_papers
+                                              .slice(0, 3)
+                                              .map((arxivPaper, paperIdx) => (
+                                                <div
+                                                  key={paperIdx}
+                                                  className="p-2 bg-slate-50 rounded border border-slate-200"
+                                                >
+                                                  <h6 className="text-sm font-medium text-slate-900 mb-1">
+                                                    <a
+                                                      href={arxivPaper.link}
+                                                      target="_blank"
+                                                      rel="noopener noreferrer"
+                                                      className="hover:text-blue-600"
+                                                    >
+                                                      {arxivPaper.title}
+                                                    </a>
+                                                  </h6>
+                                                  <p className="text-xs text-slate-500">
+                                                    {arxivPaper.published} •{" "}
+                                                    {arxivPaper.arxiv_id}
+                                                  </p>
+                                                </div>
+                                              ))}
+                                            {researcher.arxiv_papers.length >
+                                              3 && (
+                                              <p className="text-xs text-slate-500 text-center">
+                                                ... and{" "}
+                                                {researcher.arxiv_papers
+                                                  .length - 3}{" "}
+                                                more papers
+                                              </p>
+                                            )}
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* Contact Information */}
+                                      <div className="space-y-2">
+                                        <h6 className="text-sm font-medium text-slate-700">
+                                          Contact & Profiles:
+                                        </h6>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                          {/* Email */}
+                                          {researcher.email && (
+                                            <a
+                                              href={`mailto:${researcher.email}`}
+                                              className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                                            >
+                                              <Mail className="w-4 h-4" />
+                                              Email
+                                            </a>
+                                          )}
+
+                                          {/* LinkedIn */}
+                                          {researcher.linkedin && (
+                                            <a
+                                              href={researcher.linkedin}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="flex items-center gap-2 px-3 py-2 bg-blue-800 text-white rounded hover:bg-blue-900 text-sm"
+                                            >
+                                              <span>💼</span>
+                                              LinkedIn
+                                            </a>
+                                          )}
+
+                                          {/* Google Scholar */}
+                                          {(researcher.google_scholar ||
+                                            researcher.google_scholar_info
+                                              ?.profile_link) && (
+                                            <a
+                                              href={
+                                                researcher.google_scholar_info
+                                                  ?.profile_link ||
+                                                researcher.google_scholar
+                                              }
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="flex items-center gap-2 px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                                            >
+                                              <GraduationCap className="w-4 h-4" />
+                                              Google Scholar
+                                            </a>
+                                          )}
+
+                                          {/* ResearchGate */}
+                                          {researcher.researchgate && (
+                                            <a
+                                              href={researcher.researchgate}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+                                            >
+                                              <span>🔬</span>
+                                              ResearchGate
+                                            </a>
+                                          )}
+
+                                          {/* ORCID */}
+                                          {researcher.orcid && (
+                                            <a
+                                              href={`https://orcid.org/${researcher.orcid}`}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="flex items-center gap-2 px-3 py-2 bg-green-700 text-white rounded hover:bg-green-800 text-sm"
+                                            >
+                                              <span>🆔</span>
+                                              ORCID
+                                            </a>
+                                          )}
+
+                                          {/* Website */}
+                                          {researcher.website && (
+                                            <a
+                                              href={researcher.website}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="flex items-center gap-2 px-3 py-2 bg-slate-600 text-white rounded hover:bg-slate-700 text-sm"
+                                            >
+                                              <span>🌐</span>
+                                              Website
+                                            </a>
+                                          )}
+                                        </div>
+
+                                        {/* Additional Contacts (excluding phone numbers) */}
+                                        {researcher.additional_contacts.filter(
+                                          (contact) =>
+                                            !contact
+                                              .toLowerCase()
+                                              .includes("phone")
+                                        ).length > 0 && (
+                                          <div className="mt-2">
+                                            <h6 className="text-xs font-medium text-slate-600 mb-2">
+                                              Additional Contacts:
+                                            </h6>
+                                            <div className="space-y-1">
+                                              {researcher.additional_contacts
+                                                .filter(
+                                                  (contact) =>
+                                                    !contact
+                                                      .toLowerCase()
+                                                      .includes("phone")
+                                                )
+                                                .map((contact, contactIdx) => (
+                                                  <p
+                                                    key={contactIdx}
+                                                    className="text-xs text-slate-600 bg-slate-100 px-2 py-1 rounded"
+                                                  >
+                                                    {contact}
+                                                  </p>
+                                                ))}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )
+                                )}
+                              </div>
                             )}
                           </div>
                         </div>
                       )}
-                    </div>
                   </div>
                 ))}
               </div>
@@ -536,7 +779,10 @@ export default function Home() {
                 <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-medium mt-0.5">
                   4
                 </div>
-                <p>Get contact details and LinkedIn profiles for networking</p>
+                <p>
+                  Get enhanced profiles with Google Scholar data and contact
+                  details for networking
+                </p>
               </div>
             </div>
 

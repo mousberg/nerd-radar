@@ -85,22 +85,12 @@ export async function POST(request: NextRequest) {
     // Generate search query
     const searchQuery = await generateAISearchQuery(query.trim());
     
-    // Search for recent papers (last 30 days by default)
-    const daysBack = 30;
-    const maxResults = 15;
+    const maxResults = 20;
     
-    // Calculate date range for recent papers
-    const endDate = new Date();
-    const startDate = new Date(endDate.getTime() - (daysBack * 24 * 60 * 60 * 1000));
+    // Try search without restrictive date filtering first
+    let url = `http://export.arxiv.org/api/query?search_query=${encodeURIComponent(searchQuery)}&start=0&max_results=${maxResults}&sortBy=submittedDate&sortOrder=descending`;
     
-    // Format dates for ArXiv API
-    const dateFilter = `submittedDate:[${startDate.toISOString().slice(0, 10).replace(/-/g, '')}* TO ${endDate.toISOString().slice(0, 10).replace(/-/g, '')}*]`;
-    
-    // Combine search query with date filter
-    const fullQuery = `(${searchQuery}) AND ${dateFilter}`;
-    const encodedQuery = encodeURIComponent(fullQuery);
-    
-    const url = `http://export.arxiv.org/api/query?search_query=${encodedQuery}&start=0&max_results=${maxResults}&sortBy=submittedDate&sortOrder=descending`;
+    console.log('ArXiv search URL:', url);
     
     const response = await fetch(url);
     if (!response.ok) {

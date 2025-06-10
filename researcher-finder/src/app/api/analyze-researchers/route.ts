@@ -163,9 +163,7 @@ function extractResearcherContacts(text: string): Researcher[] {
   const scholarProfiles = text.match(scholarPattern) || [];
   const researchgateProfiles = text.match(researchgatePattern) || [];
   
-  // Extract phone numbers
-  const phonePattern = /(\+?[\d\s\-\(\)]{10,})/g;
-  const phones = text.match(phonePattern) || [];
+  // Note: Phone numbers are intentionally not extracted as per user request
   
   // Extract author names and affiliations
   const lines = text.split('\n').map(line => line.trim()).filter(line => line);
@@ -227,7 +225,7 @@ function extractResearcherContacts(text: string): Researcher[] {
     const name = authorInfo[i];
     const additionalContacts: string[] = [];
     
-    // Add relevant emails, phones, and other contacts for this researcher
+    // Add relevant emails and other contacts for this researcher
     emails.forEach(email => {
       if (email.toLowerCase().includes(name.split(' ')[0].toLowerCase()) ||
           email.toLowerCase().includes(name.split(' ').pop()?.toLowerCase() || '')) {
@@ -235,11 +233,7 @@ function extractResearcherContacts(text: string): Researcher[] {
       }
     });
     
-    phones.forEach(phone => {
-      if (phone.length > 8) {
-        additionalContacts.push(`Phone: ${phone.trim()}`);
-      }
-    });
+    // Phone numbers are intentionally not added to contacts as per user request
     
     const researcher: Researcher = {
       name,
