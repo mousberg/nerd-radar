@@ -125,3 +125,58 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Emoji text styling for AI summaries */
+.emoji-text {
+  line-height: 1.7;
+  font-size: 0.95rem;
+  letter-spacing: 0.025em;
+}
+
+.emoji-text strong {
+  font-weight: 600;
+  color: rgba(16, 185, 129, 0.9);
+}
+
+.emoji-text em {
+  font-style: italic;
+  color: rgba(59, 130, 246, 0.8);
+}
+
+/* Syntax highlighting for technical terms and code */
+.highlight-code {
+  background: rgba(139, 92, 246, 0.1);
+  color: rgba(139, 92, 246, 0.9);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 0.9em;
+  border: 1px solid rgba(139, 92, 246, 0.2);
+}
+
+.highlight-tech {
+  background: rgba(16, 185, 129, 0.1);
+  color: rgba(16, 185, 129, 0.9);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.highlight-metric {
+  background: rgba(59, 130, 246, 0.1);
+  color: rgba(59, 130, 246, 0.9);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.highlight-algorithm {
+  background: rgba(245, 101, 101, 0.1);
+  color: rgba(245, 101, 101, 0.9);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+  border: 1px solid rgba(245, 101, 101, 0.2);
+}

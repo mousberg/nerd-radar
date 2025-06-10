@@ -78,8 +78,8 @@ Generate only the message content, no subject line or additional formatting.`;
           content: prompt
         }
       ],
-      max_tokens: 200,
-      temperature: 0.7,
+      max_tokens: 180,
+      temperature: 0.6,
     });
 
     const message = completion.choices[0]?.message?.content?.trim();
