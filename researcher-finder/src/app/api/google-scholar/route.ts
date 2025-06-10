@@ -11,6 +11,7 @@ interface GoogleScholarProfile {
     title: string;
     year?: string;
     cited_by?: number;
+    link?: string;
   }[];
 }
 
@@ -95,7 +96,8 @@ async function searchGoogleScholar(researcherName: string): Promise<GoogleSchola
       const papers = data.organic_results.slice(0, 5).map((result: any) => ({
         title: result.title || 'Untitled',
         year: extractYear(result.publication_info?.summary || ''),
-        cited_by: extractCitedBy(result.inline_links?.cited_by?.total)
+        cited_by: extractCitedBy(result.inline_links?.cited_by?.total),
+        link: result.link || undefined
       })).filter((paper: any) => paper.title !== 'Untitled');
       
       scholarProfile.recent_papers = papers;
