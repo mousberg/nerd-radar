@@ -16,6 +16,9 @@ import {
   Settings,
   Star,
   Trash2,
+  MessageSquare,
+  Copy,
+  Loader2,
 } from "lucide-react";
 
 interface ArXivPaper {
@@ -109,6 +112,15 @@ export default function Home() {
     []
   );
   const [dragOverFavorites, setDragOverFavorites] = useState(false);
+  const [generatedMessages, setGeneratedMessages] = useState<
+    Record<string, string>
+  >({});
+  const [expandedMessages, setExpandedMessages] = useState<Set<string>>(
+    new Set()
+  );
+  const [generatingMessage, setGeneratingMessage] = useState<string | null>(
+    null
+  );
   const [filters, setFilters] = useState<SearchFilters>({
     duration: "2years",
     maxResults: 15,
@@ -199,6 +211,68 @@ export default function Home() {
       )
     );
     addConsoleLog(`🗑️ Removed ${researcher.name} from favorites`, "info");
+  };
+
+  const generateMessage = async (researcher: Researcher) => {
+    const researcherKey = `${researcher.name}-${researcher.institution}`;
+    setGeneratingMessage(researcherKey);
+
+    try {
+      addConsoleLog(
+        `💬 Generating personalized message for ${researcher.name}...`,
+        "info"
+      );
+
+      const response = await fetch("/api/generate-message", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ researcher }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to generate message");
+      }
+
+      const data = await response.json();
+
+      setGeneratedMessages((prev) => ({
+        ...prev,
+        [researcherKey]: data.message,
+      }));
+
+      setExpandedMessages((prev) => new Set([...prev, researcherKey]));
+
+      addConsoleLog(`✅ Message generated for ${researcher.name}`, "success");
+    } catch (error) {
+      const errorMsg =
+        error instanceof Error ? error.message : "An error occurred";
+      addConsoleLog(`❌ Failed to generate message: ${errorMsg}`, "error");
+    } finally {
+      setGeneratingMessage(null);
+    }
+  };
+
+  const toggleMessageExpansion = (researcherKey: string) => {
+    setExpandedMessages((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(researcherKey)) {
+        newSet.delete(researcherKey);
+      } else {
+        newSet.add(researcherKey);
+      }
+      return newSet;
+    });
+  };
+
+  const copyMessage = async (message: string, researcherName: string) => {
+    try {
+      await navigator.clipboard.writeText(message);
+      addConsoleLog(`📋 Message copied for ${researcherName}`, "success");
+    } catch (error) {
+      addConsoleLog(`❌ Failed to copy message`, "error");
+    }
   };
 
   const searchPapers = async () => {
@@ -402,7 +476,7 @@ export default function Home() {
               <Users className="w-6 h-6 text-white" />
             </div>
             <h1 className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-blue-600 bg-clip-text text-transparent">
-              Researcher Finder
+              Nerd Radar
             </h1>
           </div>
         </div>
@@ -531,64 +605,152 @@ export default function Home() {
                     </div>
                   ) : (
                     <div className="space-y-4 max-h-96 overflow-y-auto custom-scrollbar">
-                      {selectedResearchers.map((researcher, index) => (
-                        <div
-                          key={`${researcher.name}-${index}`}
-                          className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl p-4 hover:bg-white/15 transition-all shadow-lg"
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1 min-w-0">
-                              <h4 className="font-semibold text-emerald-700 text-sm truncate">
-                                {researcher.name}
-                              </h4>
-                              {researcher.institution && (
-                                <p className="text-xs text-blue-600/80 truncate mt-1 font-medium">
-                                  {researcher.institution}
-                                </p>
+                      {selectedResearchers.map((researcher, index) => {
+                        const researcherKey = `${researcher.name}-${researcher.institution}`;
+                        const hasMessage = generatedMessages[researcherKey];
+                        const isExpanded = expandedMessages.has(researcherKey);
+                        const isGenerating =
+                          generatingMessage === researcherKey;
+
+                        return (
+                          <div
+                            key={`${researcher.name}-${index}`}
+                            className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl p-4 hover:bg-white/15 transition-all shadow-lg"
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-semibold text-emerald-700 text-sm truncate">
+                                  {researcher.name}
+                                </h4>
+                                {researcher.institution && (
+                                  <p className="text-xs text-blue-600/80 truncate mt-1 font-medium">
+                                    {researcher.institution}
+                                  </p>
+                                )}
+                                {researcher.google_scholar_info?.cited_by && (
+                                  <p className="text-xs text-purple-600 mt-1 font-medium">
+                                    {researcher.google_scholar_info.cited_by.toLocaleString()}{" "}
+                                    citations
+                                  </p>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => removeFromFavorites(researcher)}
+                                className="ml-2 p-2 text-red-400 hover:text-red-600 hover:bg-red-100/20 rounded-xl transition-all"
+                                title="Remove from favorites"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+
+                            {/* Quick contact links */}
+                            <div className="flex flex-wrap gap-2 mt-3">
+                              {researcher.email && (
+                                <a
+                                  href={`mailto:${researcher.email}`}
+                                  className="px-3 py-1.5 bg-emerald-400/20 text-emerald-700 rounded-full text-xs font-semibold hover:bg-emerald-400/30 transition-all backdrop-blur-sm border border-emerald-200/30"
+                                >
+                                  Email
+                                </a>
                               )}
-                              {researcher.google_scholar_info?.cited_by && (
-                                <p className="text-xs text-purple-600 mt-1 font-medium">
-                                  {researcher.google_scholar_info.cited_by.toLocaleString()}{" "}
-                                  citations
-                                </p>
+                              {(researcher.google_scholar ||
+                                researcher.google_scholar_info
+                                  ?.profile_link) && (
+                                <a
+                                  href={
+                                    researcher.google_scholar_info
+                                      ?.profile_link ||
+                                    researcher.google_scholar
+                                  }
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-3 py-1.5 bg-blue-400/20 text-blue-700 rounded-full text-xs font-semibold hover:bg-blue-400/30 transition-all backdrop-blur-sm border border-blue-200/30"
+                                >
+                                  Profile
+                                </a>
                               )}
                             </div>
-                            <button
-                              onClick={() => removeFromFavorites(researcher)}
-                              className="ml-2 p-2 text-red-400 hover:text-red-600 hover:bg-red-100/20 rounded-xl transition-all"
-                              title="Remove from favorites"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
 
-                          {/* Quick contact links */}
-                          <div className="flex gap-2 mt-3">
-                            {researcher.email && (
-                              <a
-                                href={`mailto:${researcher.email}`}
-                                className="px-3 py-1.5 bg-emerald-400/20 text-emerald-700 rounded-full text-xs font-semibold hover:bg-emerald-400/30 transition-all backdrop-blur-sm border border-emerald-200/30"
-                              >
-                                Email
-                              </a>
-                            )}
-                            {(researcher.google_scholar ||
-                              researcher.google_scholar_info?.profile_link) && (
-                              <a
-                                href={
-                                  researcher.google_scholar_info
-                                    ?.profile_link || researcher.google_scholar
-                                }
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="px-3 py-1.5 bg-blue-400/20 text-blue-700 rounded-full text-xs font-semibold hover:bg-blue-400/30 transition-all backdrop-blur-sm border border-blue-200/30"
-                              >
-                                Profile
-                              </a>
-                            )}
+                            {/* Message Generation Section */}
+                            <div className="mt-3 border-t border-white/10 pt-3">
+                              <div className="flex items-center gap-2">
+                                {!hasMessage ? (
+                                  <button
+                                    onClick={() => generateMessage(researcher)}
+                                    disabled={isGenerating}
+                                    className="flex items-center gap-2 px-3 py-1.5 bg-purple-400/20 text-purple-700 rounded-full text-xs font-semibold hover:bg-purple-400/30 transition-all backdrop-blur-sm border border-purple-200/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    {isGenerating ? (
+                                      <>
+                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                        Generating...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <MessageSquare className="w-3 h-3" />
+                                        Generate Message
+                                      </>
+                                    )}
+                                  </button>
+                                ) : (
+                                  <div className="flex items-center gap-2 w-full">
+                                    <button
+                                      onClick={() =>
+                                        toggleMessageExpansion(researcherKey)
+                                      }
+                                      className="flex items-center gap-2 px-3 py-1.5 bg-green-400/20 text-green-700 rounded-full text-xs font-semibold hover:bg-green-400/30 transition-all backdrop-blur-sm border border-green-200/30"
+                                    >
+                                      {isExpanded ? (
+                                        <>
+                                          <ChevronDown className="w-3 h-3" />
+                                          Hide Message
+                                        </>
+                                      ) : (
+                                        <>
+                                          <MessageSquare className="w-3 h-3" />
+                                          View Message
+                                        </>
+                                      )}
+                                    </button>
+                                    <button
+                                      onClick={() =>
+                                        copyMessage(hasMessage, researcher.name)
+                                      }
+                                      className="flex items-center gap-1 px-2 py-1.5 bg-gray-400/20 text-gray-700 rounded-full text-xs font-semibold hover:bg-gray-400/30 transition-all backdrop-blur-sm border border-gray-200/30"
+                                      title="Copy message"
+                                    >
+                                      <Copy className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Collapsible Message Display */}
+                              {hasMessage && isExpanded && (
+                                <div className="mt-3 p-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <h5 className="text-xs font-semibold text-purple-700">
+                                      Personalized Message
+                                    </h5>
+                                    <button
+                                      onClick={() =>
+                                        copyMessage(hasMessage, researcher.name)
+                                      }
+                                      className="p-1 text-gray-500 hover:text-gray-700 rounded transition-all"
+                                      title="Copy message"
+                                    >
+                                      <Copy className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                  <div className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap bg-white/20 p-3 rounded-lg border border-white/20">
+                                    {hasMessage}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>

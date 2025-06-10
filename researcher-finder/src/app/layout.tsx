@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Researcher Finder - AI-Powered Academic Network Discovery",
+  title: "Nerd Radar - AI-Powered Academic Network Discovery",
   description:
     "Find and connect with researchers in your field using AI-powered paper analysis and enhanced academic profiles with citation data.",
 };
