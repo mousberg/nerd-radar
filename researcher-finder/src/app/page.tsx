@@ -20,6 +20,7 @@ import {
   Copy,
   Loader2,
 } from "lucide-react";
+import NerdRadarHeaderLogo from "./components/NerdRadarHeaderLogo";
 
 interface ArXivPaper {
   title: string;
@@ -468,16 +469,11 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-blue-50 to-purple-50">
-      {/* Header */}
-      <div className="bg-white/20 backdrop-blur-xl border-b border-white/20 shadow-lg">
-        <div className="max-w-6xl mx-auto px-6 py-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-gradient-to-br from-emerald-400 to-blue-500 rounded-2xl flex items-center justify-center shadow-lg">
-              <Users className="w-6 h-6 text-white" />
-            </div>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-blue-600 bg-clip-text text-transparent">
-              Nerd Radar
-            </h1>
+      {/* Logo Header */}
+      <div className="pt-6 pb-4">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="cursor-pointer" onClick={() => window.location.reload()}>
+            <NerdRadarHeaderLogo />
           </div>
         </div>
       </div>
