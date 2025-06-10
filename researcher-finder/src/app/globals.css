@@ -2,35 +2,37 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom scrollbar for console */
+/* Custom scrollbar for console and glassmorphic containers */
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: #64748b #1e293b;
+  scrollbar-color: rgba(16, 185, 129, 0.3) rgba(255, 255, 255, 0.1);
 }
 
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: #1e293b;
-  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #64748b;
-  border-radius: 4px;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.6), rgba(59, 130, 246, 0.6));
+  border-radius: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.8), rgba(59, 130, 246, 0.8));
 }
 
 /* Animation for console logs */
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -39,7 +41,64 @@
 }
 
 .animate-fadeIn {
-  animation: fadeIn 0.3s ease-out;
+  animation: fadeIn 0.4s ease-out;
+}
+
+/* Glassmorphic blur effects */
+.backdrop-blur-xl {
+  backdrop-filter: blur(20px);
+}
+
+.backdrop-blur-sm {
+  backdrop-filter: blur(8px);
+}
+
+/* Drag and drop styles with glassmorphic enhancement */
+[draggable="true"] {
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[draggable="true"]:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 40px rgba(16, 185, 129, 0.15);
+}
+
+[draggable="true"]:active {
+  opacity: 0.9;
+  transform: rotate(1deg) scale(0.98);
+  transition: all 0.2s ease;
+}
+
+/* Drag ghost effect */
+.dragging {
+  opacity: 0.6;
+  transform: scale(0.95) rotate(2deg);
+  transition: all 0.2s ease;
+}
+
+/* Drop zone highlight with glassmorphic style */
+.drop-zone-active {
+  border: 2px dashed rgba(147, 51, 234, 0.5) !important;
+  background: linear-gradient(135deg, rgba(147, 51, 234, 0.1), rgba(236, 72, 153, 0.1)) !important;
+  backdrop-filter: blur(20px) !important;
+}
+
+/* Enhanced button hover effects */
+button, a {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Glassmorphic input focus states */
+input:focus, textarea:focus, select:focus {
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+  transform: translateY(-1px);
+}
+
+/* Gradient text for headings */
+.bg-gradient-to-r.bg-clip-text {
+  -webkit-background-clip: text;
+  background-clip: text;
 }
 
 :root {

@@ -14,6 +14,8 @@ import {
   ChevronDown,
   ChevronRight,
   Settings,
+  Star,
+  Trash2,
 } from "lucide-react";
 
 interface ArXivPaper {
@@ -103,6 +105,10 @@ export default function Home() {
   const [consoleLogs, setConsoleLogs] = useState<ConsoleLog[]>([]);
   const consoleEndRef = useRef<HTMLDivElement>(null);
   const consoleContainerRef = useRef<HTMLDivElement>(null);
+  const [selectedResearchers, setSelectedResearchers] = useState<Researcher[]>(
+    []
+  );
+  const [dragOverFavorites, setDragOverFavorites] = useState(false);
   const [filters, setFilters] = useState<SearchFilters>({
     duration: "2years",
     maxResults: 15,
@@ -134,6 +140,66 @@ export default function Home() {
         consoleContainerRef.current.scrollHeight;
     }
   }, [consoleLogs]);
+
+  // Drag and drop handlers for researcher favorites
+  const handleDragStart = (e: React.DragEvent, researcher: Researcher) => {
+    e.dataTransfer.setData("researcher", JSON.stringify(researcher));
+    e.dataTransfer.effectAllowed = "copy";
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    setDragOverFavorites(true);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverFavorites(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOverFavorites(false);
+
+    try {
+      const researcherData = e.dataTransfer.getData("researcher");
+      if (researcherData) {
+        const researcher = JSON.parse(researcherData) as Researcher;
+
+        // Check if researcher is already in favorites
+        const isAlreadySelected = selectedResearchers.some(
+          (selected) =>
+            selected.name === researcher.name &&
+            selected.institution === researcher.institution
+        );
+
+        if (!isAlreadySelected) {
+          setSelectedResearchers((prev) => [...prev, researcher]);
+          addConsoleLog(`✨ Added ${researcher.name} to favorites`, "success");
+        } else {
+          addConsoleLog(
+            `⚠️ ${researcher.name} already in favorites`,
+            "warning"
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Error dropping researcher:", error);
+    }
+  };
+
+  const removeFromFavorites = (researcher: Researcher) => {
+    setSelectedResearchers((prev) =>
+      prev.filter(
+        (selected) =>
+          !(
+            selected.name === researcher.name &&
+            selected.institution === researcher.institution
+          )
+      )
+    );
+    addConsoleLog(`🗑️ Removed ${researcher.name} from favorites`, "info");
+  };
 
   const searchPapers = async () => {
     if (!query.trim()) return;
@@ -327,15 +393,15 @@ export default function Home() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-blue-50 to-purple-50">
       {/* Header */}
-      <div className="bg-white border-b border-slate-200 shadow-sm">
-        <div className="max-w-6xl mx-auto px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <Users className="w-5 h-5 text-white" />
+      <div className="bg-white/20 backdrop-blur-xl border-b border-white/20 shadow-lg">
+        <div className="max-w-6xl mx-auto px-6 py-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-gradient-to-br from-emerald-400 to-blue-500 rounded-2xl flex items-center justify-center shadow-lg">
+              <Users className="w-6 h-6 text-white" />
             </div>
-            <h1 className="text-xl font-semibold text-slate-900">
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-blue-600 bg-clip-text text-transparent">
               Researcher Finder
             </h1>
           </div>
@@ -346,99 +412,216 @@ export default function Home() {
         <div className="flex gap-8">
           {/* Left Sidebar - Console */}
           <div className="w-80 shrink-0">
-            {(loading || consoleLogs.length > 0) && (
-              <div className="sticky top-8">
-                <div className="bg-slate-900 rounded-xl shadow-lg border border-slate-700 p-4 font-mono text-sm">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                      <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                      <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                      <span className="text-slate-400 ml-2 text-xs font-medium">
-                        Live Console
+            <div className="sticky top-8">
+              <div className="bg-emerald-900/10 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 p-6 font-mono text-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-3 h-3 bg-emerald-400 rounded-full shadow-lg shadow-emerald-400/50"></div>
+                    <div className="w-3 h-3 bg-amber-400 rounded-full shadow-lg shadow-amber-400/50"></div>
+                    <div className="w-3 h-3 bg-red-400 rounded-full shadow-lg shadow-red-400/50"></div>
+                    <span className="text-emerald-700 ml-3 text-xs font-semibold">
+                      Live Console
+                    </span>
+                  </div>
+                  <button
+                    onClick={clearConsoleLogs}
+                    className="text-emerald-600 hover:text-emerald-800 text-xs font-medium px-3 py-1 rounded-full hover:bg-white/10 transition-all"
+                  >
+                    Clear
+                  </button>
+                </div>
+                <div
+                  ref={consoleContainerRef}
+                  className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar"
+                >
+                  {consoleLogs.map((log) => (
+                    <div
+                      key={log.id}
+                      className="flex items-start gap-3 animate-fadeIn p-3 rounded-2xl bg-white/5 backdrop-blur-sm border border-white/10"
+                    >
+                      <span className="text-emerald-500/70 text-xs shrink-0 mt-0.5 font-medium">
+                        {log.timestamp.toLocaleTimeString()}
+                      </span>
+                      <span
+                        className={`text-xs leading-relaxed font-medium ${
+                          log.type === "error"
+                            ? "text-red-500"
+                            : log.type === "success"
+                            ? "text-emerald-500"
+                            : log.type === "warning"
+                            ? "text-amber-500"
+                            : "text-blue-600"
+                        }`}
+                      >
+                        {log.message}
                       </span>
                     </div>
-                    <button
-                      onClick={clearConsoleLogs}
-                      className="text-slate-400 hover:text-slate-300 text-xs transition-colors"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                  <div
-                    ref={consoleContainerRef}
-                    className="space-y-2 max-h-96 overflow-y-auto custom-scrollbar"
-                  >
-                    {consoleLogs.map((log) => (
-                      <div
-                        key={log.id}
-                        className="flex items-start gap-2 animate-fadeIn"
-                      >
-                        <span className="text-slate-500 text-xs shrink-0 mt-0.5">
-                          {log.timestamp.toLocaleTimeString()}
-                        </span>
-                        <span
-                          className={`text-xs leading-relaxed ${
-                            log.type === "error"
-                              ? "text-red-400"
-                              : log.type === "success"
-                              ? "text-green-400"
-                              : log.type === "warning"
-                              ? "text-yellow-400"
-                              : "text-slate-300"
-                          }`}
-                        >
-                          {log.message}
-                        </span>
+                  ))}
+                  {loading && (
+                    <div className="flex items-center gap-3 animate-pulse p-3 rounded-2xl bg-white/5 backdrop-blur-sm border border-white/10">
+                      <span className="text-emerald-500/70 text-xs mt-0.5 font-medium">
+                        {new Date().toLocaleTimeString()}
+                      </span>
+                      <span className="text-blue-500 text-xs flex items-center gap-2 font-medium">
+                        <div className="w-2 h-2 bg-gradient-to-r from-emerald-400 to-blue-400 rounded-full animate-bounce shadow-lg"></div>
+                        Processing...
+                      </span>
+                    </div>
+                  )}
+                  {consoleLogs.length === 0 && !loading && (
+                    <div className="text-center py-12 px-4">
+                      <div className="w-16 h-16 bg-gradient-to-br from-emerald-400/20 to-blue-400/20 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-sm border border-white/20">
+                        <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-blue-500 rounded-full flex items-center justify-center">
+                          <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                        </div>
                       </div>
-                    ))}
-                    {loading && (
-                      <div className="flex items-center gap-2 animate-pulse">
-                        <span className="text-slate-500 text-xs mt-0.5">
-                          {new Date().toLocaleTimeString()}
-                        </span>
-                        <span className="text-blue-400 text-xs flex items-center gap-2">
-                          <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
-                          Processing...
-                        </span>
+                      <div className="text-emerald-600 font-semibold mb-2">
+                        ● System Ready
                       </div>
-                    )}
-                    {consoleLogs.length === 0 && !loading && (
-                      <div className="text-slate-500 text-xs text-center py-4">
-                        Console ready. Start a search to see activity.
+                      <div className="text-emerald-700/80 text-xs font-medium">
+                        Console initialized and waiting for activity.
                       </div>
-                    )}
-                    {/* Auto-scroll target */}
-                    <div ref={consoleEndRef} />
-                  </div>
+                      <div className="mt-3 text-blue-600/80 text-xs">
+                        Start a search to see real-time progress.
+                      </div>
+                    </div>
+                  )}
+                  {/* Auto-scroll target */}
+                  <div ref={consoleEndRef} />
                 </div>
               </div>
-            )}
+            </div>
+
+            {/* Favorites Box */}
+            <div className="mt-8 sticky top-8">
+              <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 overflow-hidden">
+                <div className="bg-gradient-to-r from-purple-400/20 to-pink-400/20 backdrop-blur-xl p-6 border-b border-white/10">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg">
+                      <Star className="w-5 h-5 text-white fill-white" />
+                    </div>
+                    <h3 className="text-purple-700 font-bold text-lg">
+                      Favorite Researchers
+                    </h3>
+                  </div>
+                  <p className="text-purple-600/80 text-sm mt-2 font-medium">
+                    Drag researchers here to save them
+                  </p>
+                </div>
+
+                <div
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={`min-h-32 p-6 transition-all duration-300 ${
+                    dragOverFavorites
+                      ? "bg-purple-100/20 border-purple-300/30"
+                      : "bg-white/5"
+                  }`}
+                >
+                  {selectedResearchers.length === 0 ? (
+                    <div className="text-center py-12">
+                      <div className="w-16 h-16 bg-gradient-to-br from-purple-400/20 to-pink-400/20 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-sm border border-white/20">
+                        <Star className="w-8 h-8 text-purple-400" />
+                      </div>
+                      <p className="text-purple-600 text-sm font-medium">
+                        {dragOverFavorites
+                          ? "Drop researcher here!"
+                          : "No researchers saved yet"}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4 max-h-96 overflow-y-auto custom-scrollbar">
+                      {selectedResearchers.map((researcher, index) => (
+                        <div
+                          key={`${researcher.name}-${index}`}
+                          className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl p-4 hover:bg-white/15 transition-all shadow-lg"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-semibold text-emerald-700 text-sm truncate">
+                                {researcher.name}
+                              </h4>
+                              {researcher.institution && (
+                                <p className="text-xs text-blue-600/80 truncate mt-1 font-medium">
+                                  {researcher.institution}
+                                </p>
+                              )}
+                              {researcher.google_scholar_info?.cited_by && (
+                                <p className="text-xs text-purple-600 mt-1 font-medium">
+                                  {researcher.google_scholar_info.cited_by.toLocaleString()}{" "}
+                                  citations
+                                </p>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => removeFromFavorites(researcher)}
+                              className="ml-2 p-2 text-red-400 hover:text-red-600 hover:bg-red-100/20 rounded-xl transition-all"
+                              title="Remove from favorites"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          {/* Quick contact links */}
+                          <div className="flex gap-2 mt-3">
+                            {researcher.email && (
+                              <a
+                                href={`mailto:${researcher.email}`}
+                                className="px-3 py-1.5 bg-emerald-400/20 text-emerald-700 rounded-full text-xs font-semibold hover:bg-emerald-400/30 transition-all backdrop-blur-sm border border-emerald-200/30"
+                              >
+                                Email
+                              </a>
+                            )}
+                            {(researcher.google_scholar ||
+                              researcher.google_scholar_info?.profile_link) && (
+                              <a
+                                href={
+                                  researcher.google_scholar_info
+                                    ?.profile_link || researcher.google_scholar
+                                }
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-3 py-1.5 bg-blue-400/20 text-blue-700 rounded-full text-xs font-semibold hover:bg-blue-400/30 transition-all backdrop-blur-sm border border-blue-200/30"
+                              >
+                                Profile
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Main Content */}
           <div className="flex-1 min-w-0">
             {/* Search Section */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-8">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <Search className="w-5 h-5 text-slate-600" />
-                  <h2 className="text-lg font-medium text-slate-900">
+            <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 p-8 mb-8">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-emerald-400 to-blue-500 rounded-2xl flex items-center justify-center shadow-lg">
+                    <Search className="w-6 h-6 text-white" />
+                  </div>
+                  <h2 className="text-xl font-bold text-emerald-700">
                     Find Researchers by Research Area
                   </h2>
                 </div>
                 <button
                   onClick={() => setShowAdvanced(!showAdvanced)}
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-blue-600 hover:text-blue-700 font-medium hover:bg-blue-50 rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-4 py-2.5 text-sm text-blue-600 hover:text-blue-700 font-semibold hover:bg-white/20 rounded-2xl transition-all backdrop-blur-sm border border-white/20"
                 >
                   <Settings className="w-4 h-4" />
                   {showAdvanced ? "Hide" : "Show"} Advanced
                 </button>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-6">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                  <label className="block text-sm font-semibold text-emerald-700 mb-3">
                     Describe your researcher requirements:
                   </label>
                   <textarea
@@ -448,20 +631,22 @@ export default function Home() {
                       e.key === "Enter" && !e.shiftKey && searchPapers()
                     }
                     placeholder="e.g., I need researchers working on machine learning for healthcare, specifically deep learning applications in medical imaging..."
-                    className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-slate-900 placeholder-slate-500 resize-vertical h-24"
+                    className="w-full px-6 py-4 bg-white/20 backdrop-blur-sm border border-white/30 rounded-2xl focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400 outline-none text-emerald-800 placeholder-emerald-600/60 resize-vertical h-28 font-medium shadow-lg"
                   />
                 </div>
 
                 {/* Advanced Search Options */}
                 {showAdvanced && (
-                  <div className="bg-slate-50 rounded-lg p-4 space-y-4 border border-slate-200">
-                    <h3 className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
-                      <Settings className="w-4 h-4" />
+                  <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 space-y-6 border border-white/20 shadow-lg">
+                    <h3 className="text-sm font-bold text-blue-700 mb-4 flex items-center gap-3">
+                      <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-purple-500 rounded-xl flex items-center justify-center">
+                        <Settings className="w-4 h-4 text-white" />
+                      </div>
                       Advanced Search Options
                     </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       <div>
-                        <label className="block text-sm font-medium text-slate-600 mb-2">
+                        <label className="block text-sm font-semibold text-purple-700 mb-3">
                           Time Range
                         </label>
                         <select
@@ -472,7 +657,7 @@ export default function Home() {
                               duration: e.target.value,
                             }))
                           }
-                          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-2xl text-sm font-medium text-purple-700 focus:ring-2 focus:ring-purple-400 focus:border-purple-400 shadow-lg"
                         >
                           <option value="1month">Last Month</option>
                           <option value="3months">Last 3 Months</option>
@@ -484,7 +669,7 @@ export default function Home() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-slate-600 mb-2">
+                        <label className="block text-sm font-semibold text-purple-700 mb-3">
                           Max Results
                         </label>
                         <select
@@ -495,7 +680,7 @@ export default function Home() {
                               maxResults: parseInt(e.target.value),
                             }))
                           }
-                          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-2xl text-sm font-medium text-purple-700 focus:ring-2 focus:ring-purple-400 focus:border-purple-400 shadow-lg"
                         >
                           <option value={10}>10 Papers</option>
                           <option value={15}>15 Papers</option>
@@ -505,7 +690,7 @@ export default function Home() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-slate-600 mb-2">
+                        <label className="block text-sm font-semibold text-purple-700 mb-3">
                           Sort By
                         </label>
                         <select
@@ -516,7 +701,7 @@ export default function Home() {
                               sortBy: e.target.value,
                             }))
                           }
-                          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-2xl text-sm font-medium text-purple-700 focus:ring-2 focus:ring-purple-400 focus:border-purple-400 shadow-lg"
                         >
                           <option value="relevance">Relevance</option>
                           <option value="lastUpdatedDate">Date (Newest)</option>
@@ -530,16 +715,16 @@ export default function Home() {
                 <button
                   onClick={searchPapers}
                   disabled={loading}
-                  className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium transition-colors"
+                  className="w-full px-8 py-4 bg-gradient-to-r from-emerald-500 to-blue-500 text-white rounded-2xl hover:from-emerald-600 hover:to-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 font-bold text-lg transition-all shadow-2xl hover:shadow-emerald-500/25 backdrop-blur-sm"
                 >
                   {loading ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                       Searching Papers...
                     </>
                   ) : (
                     <>
-                      <Search className="w-4 h-4" />
+                      <Search className="w-5 h-5" />
                       Find Researchers
                     </>
                   )}
@@ -547,27 +732,31 @@ export default function Home() {
               </div>
 
               {error && (
-                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-red-700 text-sm">{error}</p>
+                <div className="mt-6 p-4 bg-red-100/20 backdrop-blur-sm border border-red-200/30 rounded-2xl shadow-lg">
+                  <p className="text-red-600 text-sm font-medium">{error}</p>
                 </div>
               )}
             </div>
 
             {/* Search Query Display */}
             {searchResults && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                <p className="text-blue-800 text-sm">
-                  <strong>AI Generated Search Query:</strong>{" "}
-                  {searchResults.query}
+              <div className="bg-blue-100/20 backdrop-blur-sm border border-blue-200/30 rounded-2xl p-6 mb-8 shadow-lg">
+                <p className="text-blue-700 font-medium">
+                  <strong className="text-blue-800">
+                    AI Generated Search Query:
+                  </strong>{" "}
+                  <span className="italic">{searchResults.query}</span>
                 </p>
               </div>
             )}
 
             {/* Papers Results Header */}
             {searchResults && (
-              <div className="flex items-center gap-3 mb-6">
-                <FileText className="w-5 h-5 text-slate-600" />
-                <h3 className="text-lg font-medium text-slate-900">
+              <div className="flex items-center gap-4 mb-8">
+                <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg">
+                  <FileText className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="text-xl font-bold text-purple-700">
                   Research Papers Found ({searchResults.papers.length})
                 </h3>
               </div>
@@ -575,15 +764,17 @@ export default function Home() {
 
             {/* No Papers Found */}
             {searchResults && searchResults.papers.length === 0 && (
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 mb-8 text-center">
-                <FileText className="w-16 h-16 mx-auto mb-4 text-slate-300" />
-                <h3 className="text-lg font-medium text-slate-900 mb-2">
+              <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 p-12 mb-8 text-center">
+                <div className="w-24 h-24 bg-gradient-to-br from-blue-400/20 to-purple-400/20 rounded-full flex items-center justify-center mx-auto mb-6 backdrop-blur-sm border border-white/20">
+                  <FileText className="w-12 h-12 text-blue-400" />
+                </div>
+                <h3 className="text-xl font-bold text-blue-700 mb-3">
                   No papers found
                 </h3>
-                <p className="text-slate-600 mb-4">
+                <p className="text-blue-600/80 mb-6 font-medium">
                   No papers found matching your criteria.
                 </p>
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-purple-600/80 font-medium">
                   Try adjusting your search terms or extending the time range in
                   advanced options.
                 </p>
@@ -592,52 +783,57 @@ export default function Home() {
 
             {/* Papers Results - Each paper as separate block */}
             {searchResults && searchResults.papers.length > 0 && (
-              <div className="space-y-6">
+              <div className="space-y-8">
                 {searchResults.papers.map((paper, index) => (
                   <div
                     key={paper.id}
-                    className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow"
+                    className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 overflow-hidden hover:shadow-emerald-500/10 transition-all duration-300"
                   >
                     {/* Paper Header */}
-                    <div className="p-6">
-                      <div className="flex items-start justify-between mb-4">
+                    <div className="p-8">
+                      <div className="flex items-start justify-between mb-6">
                         <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          <div className="flex items-center gap-3 mb-3">
+                            <span className="inline-flex items-center px-4 py-2 rounded-2xl text-sm font-bold bg-gradient-to-r from-emerald-400/20 to-blue-400/20 text-emerald-700 backdrop-blur-sm border border-emerald-200/30">
                               Paper #{index + 1}
                             </span>
-                            <span className="text-xs text-slate-500">
+                            <span className="text-xs text-blue-600/70 font-medium bg-white/20 px-3 py-1 rounded-full backdrop-blur-sm">
                               {paper.id}
                             </span>
                           </div>
-                          <h4 className="text-xl font-semibold text-slate-900 mb-3 leading-tight">
+                          <h4 className="text-2xl font-bold text-emerald-800 mb-4 leading-tight">
                             {paper.title}
                           </h4>
-                          <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600 mb-4">
-                            <div className="flex items-center gap-1">
+                          <div className="flex flex-wrap items-center gap-6 text-sm text-purple-700 mb-6">
+                            <div className="flex items-center gap-2 bg-white/20 px-3 py-2 rounded-2xl backdrop-blur-sm border border-white/20">
                               <Users className="w-4 h-4" />
-                              <span className="font-medium">
+                              <span className="font-semibold">
                                 {paper.authors.length} authors:
                               </span>
-                              <span>
+                              <span className="font-medium">
                                 {paper.authors.slice(0, 3).join(", ")}
                                 {paper.authors.length > 3 &&
                                   ` +${paper.authors.length - 3} more`}
                               </span>
                             </div>
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-2 bg-white/20 px-3 py-2 rounded-2xl backdrop-blur-sm border border-white/20">
                               <Calendar className="w-4 h-4" />
-                              <span>Published {paper.published}</span>
+                              <span className="font-medium">
+                                Published {paper.published}
+                              </span>
                             </div>
                           </div>
                         </div>
                       </div>
 
-                      <div className="bg-slate-50 rounded-lg p-4 mb-4">
-                        <h5 className="text-sm font-medium text-slate-700 mb-2">
+                      <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 mb-6 border border-white/20 shadow-lg">
+                        <h5 className="text-sm font-bold text-blue-700 mb-3 flex items-center gap-2">
+                          <div className="w-6 h-6 bg-gradient-to-br from-blue-400 to-purple-500 rounded-xl flex items-center justify-center">
+                            <FileText className="w-3 h-3 text-white" />
+                          </div>
                           Abstract
                         </h5>
-                        <p className="text-slate-700 text-sm leading-relaxed">
+                        <p className="text-emerald-800 text-sm leading-relaxed font-medium">
                           {paper.summary.length > 400
                             ? `${paper.summary.substring(0, 400)}...`
                             : paper.summary}
@@ -645,12 +841,12 @@ export default function Home() {
                       </div>
 
                       {/* Action Buttons */}
-                      <div className="flex items-center gap-3 mb-4">
+                      <div className="flex items-center gap-4 mb-6">
                         <a
                           href={paper.link}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 text-sm font-medium flex items-center gap-2 transition-colors"
+                          className="px-6 py-3 bg-white/20 backdrop-blur-sm border border-white/30 text-purple-700 rounded-2xl hover:bg-white/30 text-sm font-semibold flex items-center gap-2 transition-all shadow-lg hover:shadow-purple-500/20"
                         >
                           <ExternalLink className="w-4 h-4" />
                           View on ArXiv
@@ -662,7 +858,7 @@ export default function Home() {
                               analyzeResearchers(paper.pdf_url!, paper.id)
                             }
                             disabled={analyzingPaper === paper.id}
-                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium flex items-center gap-2 transition-colors"
+                            className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-blue-500 text-white rounded-2xl hover:from-emerald-600 hover:to-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-semibold flex items-center gap-2 transition-all shadow-lg hover:shadow-emerald-500/25"
                           >
                             {analyzingPaper === paper.id ? (
                               <>
@@ -681,7 +877,7 @@ export default function Home() {
                         {paperAnalysisResults[paper.id] && (
                           <button
                             onClick={() => togglePaperExpansion(paper.id)}
-                            className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 text-sm font-medium flex items-center gap-2 transition-colors"
+                            className="px-6 py-3 bg-gradient-to-r from-purple-400/20 to-pink-400/20 backdrop-blur-sm border border-purple-200/30 text-purple-700 rounded-2xl hover:bg-gradient-to-r hover:from-purple-400/30 hover:to-pink-400/30 text-sm font-semibold flex items-center gap-2 transition-all shadow-lg"
                           >
                             {expandedPapers.has(paper.id) ? (
                               <>
@@ -706,9 +902,11 @@ export default function Home() {
                       {/* Researcher Results - Tree-like expansion under specific paper */}
                       {paperAnalysisResults[paper.id] &&
                         expandedPapers.has(paper.id) && (
-                          <div className="border-t border-slate-200 bg-slate-50 -mx-6 px-6 pt-4">
-                            <h5 className="text-lg font-medium text-slate-900 mb-4 flex items-center gap-2">
-                              <Users className="w-5 h-5" />
+                          <div className="border-t border-white/20 bg-gradient-to-br from-emerald-50/20 to-blue-50/20 backdrop-blur-sm -mx-8 px-8 pt-6">
+                            <h5 className="text-xl font-bold text-emerald-700 mb-6 flex items-center gap-3">
+                              <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-blue-500 rounded-2xl flex items-center justify-center shadow-lg">
+                                <Users className="w-5 h-5 text-white" />
+                              </div>
                               Researchers Found (
                               {
                                 paperAnalysisResults[paper.id].researchers
@@ -719,22 +917,34 @@ export default function Home() {
 
                             {paperAnalysisResults[paper.id].researchers
                               .length === 0 ? (
-                              <p className="text-slate-500 pb-4">
+                              <p className="text-blue-600/80 pb-6 font-medium">
                                 No researchers found in this paper.
                               </p>
                             ) : (
-                              <div className="space-y-4 pb-4">
+                              <div className="space-y-6 pb-6">
                                 {paperAnalysisResults[paper.id].researchers.map(
                                   (researcher, idx) => (
                                     <div
                                       key={idx}
-                                      className="bg-white border border-slate-200 rounded-lg p-4"
+                                      draggable
+                                      onDragStart={(e) =>
+                                        handleDragStart(e, researcher)
+                                      }
+                                      className="bg-white/15 backdrop-blur-sm border border-white/30 rounded-3xl p-6 cursor-move hover:bg-white/20 hover:shadow-2xl transition-all duration-300 shadow-lg"
+                                      title="Drag to favorites to save this researcher"
                                     >
                                       <div className="flex justify-between items-start mb-3">
                                         <div>
-                                          <h6 className="text-lg font-semibold text-slate-900 mb-1">
-                                            {researcher.name}
-                                          </h6>
+                                          <div className="flex items-center gap-2 mb-1">
+                                            <h6 className="text-lg font-semibold text-slate-900">
+                                              {researcher.name}
+                                            </h6>
+                                            <div className="flex flex-col gap-0.5 text-slate-400">
+                                              <div className="w-1 h-1 bg-current rounded-full"></div>
+                                              <div className="w-1 h-1 bg-current rounded-full"></div>
+                                              <div className="w-1 h-1 bg-current rounded-full"></div>
+                                            </div>
+                                          </div>
                                           {researcher.paper_count > 0 && (
                                             <p className="text-sm text-blue-600 font-medium mb-1">
                                               📚 {researcher.paper_count} ArXiv
@@ -1062,50 +1272,62 @@ export default function Home() {
 
             {/* Example Section */}
             {!searchResults && !loading && (
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                <h3 className="text-lg font-medium text-slate-900 mb-4">
+              <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 p-8">
+                <h3 className="text-2xl font-bold text-emerald-700 mb-6 flex items-center gap-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-emerald-400 to-blue-500 rounded-2xl flex items-center justify-center shadow-lg">
+                    <Users className="w-6 h-6 text-white" />
+                  </div>
                   How it works
                 </h3>
-                <div className="space-y-3 text-slate-700 mb-6">
-                  <div className="flex items-start gap-3">
-                    <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-medium mt-0.5">
+                <div className="space-y-6 text-purple-700 mb-8">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 bg-gradient-to-br from-emerald-400/20 to-blue-400/20 backdrop-blur-sm text-emerald-700 rounded-2xl flex items-center justify-center text-sm font-bold border border-emerald-200/30">
                       1
                     </div>
-                    <p>Describe what kind of researchers you're looking for</p>
+                    <p className="font-medium pt-2">
+                      Describe what kind of researchers you're looking for
+                    </p>
                   </div>
-                  <div className="flex items-start gap-3">
-                    <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-medium mt-0.5">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 bg-gradient-to-br from-blue-400/20 to-purple-400/20 backdrop-blur-sm text-blue-700 rounded-2xl flex items-center justify-center text-sm font-bold border border-blue-200/30">
                       2
                     </div>
-                    <p>AI finds relevant research papers from ArXiv</p>
+                    <p className="font-medium pt-2">
+                      AI finds relevant research papers from ArXiv
+                    </p>
                   </div>
-                  <div className="flex items-start gap-3">
-                    <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-medium mt-0.5">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 bg-gradient-to-br from-purple-400/20 to-pink-400/20 backdrop-blur-sm text-purple-700 rounded-2xl flex items-center justify-center text-sm font-bold border border-purple-200/30">
                       3
                     </div>
-                    <p>Click "Find Researchers" on papers of interest</p>
+                    <p className="font-medium pt-2">
+                      Click "Find Researchers" on papers of interest
+                    </p>
                   </div>
-                  <div className="flex items-start gap-3">
-                    <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-medium mt-0.5">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 bg-gradient-to-br from-pink-400/20 to-emerald-400/20 backdrop-blur-sm text-pink-700 rounded-2xl flex items-center justify-center text-sm font-bold border border-pink-200/30">
                       4
                     </div>
-                    <p>
+                    <p className="font-medium pt-2">
                       Get enhanced profiles with author's details and contact
                       information for networking
                     </p>
                   </div>
                 </div>
 
-                <div className="bg-blue-50 rounded-lg p-4">
-                  <p className="text-blue-800 font-medium mb-2">
+                <div className="bg-gradient-to-r from-blue-100/20 to-purple-100/20 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg">
+                  <p className="text-blue-700 font-bold mb-4 flex items-center gap-2">
+                    <div className="w-6 h-6 bg-gradient-to-br from-blue-400 to-purple-500 rounded-xl flex items-center justify-center">
+                      <span className="text-white text-xs">✨</span>
+                    </div>
                     Try these examples:
                   </p>
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {examplePrompts.map((prompt, index) => (
                       <button
                         key={index}
                         onClick={() => setQuery(prompt)}
-                        className="block text-left text-blue-600 hover:underline text-sm transition-colors"
+                        className="block text-left text-purple-600 hover:text-purple-800 text-sm font-medium transition-colors p-2 hover:bg-white/10 rounded-xl w-full"
                       >
                         → {prompt}
                       </button>
