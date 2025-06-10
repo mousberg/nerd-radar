@@ -122,6 +122,12 @@ export default function Home() {
   const [generatingMessage, setGeneratingMessage] = useState<string | null>(
     null
   );
+  const [paperSummaries, setPaperSummaries] = useState<Record<string, string>>(
+    {}
+  );
+  const [generatingSummary, setGeneratingSummary] = useState<string | null>(
+    null
+  );
   const [filters, setFilters] = useState<SearchFilters>({
     duration: "2years",
     maxResults: 15,
@@ -276,6 +282,44 @@ export default function Home() {
     }
   };
 
+  const generatePaperSummary = async (paper: Paper) => {
+    setGeneratingSummary(paper.id);
+
+    try {
+      addConsoleLog(`✨ Generating engaging summary for paper...`, "info");
+
+      const response = await fetch("/api/summarize-paper", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: paper.title,
+          abstract: paper.summary,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to generate summary");
+      }
+
+      const data = await response.json();
+
+      setPaperSummaries((prev) => ({
+        ...prev,
+        [paper.id]: data.summary,
+      }));
+
+      addConsoleLog(`🎉 AI summary generated with emojis!`, "success");
+    } catch (error) {
+      const errorMsg =
+        error instanceof Error ? error.message : "An error occurred";
+      addConsoleLog(`❌ Failed to generate summary: ${errorMsg}`, "error");
+    } finally {
+      setGeneratingSummary(null);
+    }
+  };
+
   const searchPapers = async () => {
     if (!query.trim()) return;
 
@@ -284,6 +328,7 @@ export default function Home() {
     setSearchResults(null);
     setPaperAnalysisResults({});
     setExpandedPapers(new Set());
+    setPaperSummaries({});
     clearConsoleLogs();
 
     try {
@@ -379,8 +424,14 @@ export default function Home() {
       addConsoleLog("🤖 Processing author data with AI...", "info");
 
       const data: AnalysisResult = await response.json();
+
+      // Filter researchers to only include those with available author details
+      const researchersWithDetails = data.researchers.filter(
+        (r) => r.google_scholar_info
+      );
+
       addConsoleLog(
-        `👥 Identified ${data.researchers.length} researchers`,
+        `👥 Identified ${researchersWithDetails.length} researchers with available author details`,
         "success"
       );
 
@@ -898,12 +949,50 @@ export default function Home() {
             {/* Search Query Display */}
             {searchResults && (
               <div className="bg-blue-100/20 backdrop-blur-sm border border-blue-200/30 rounded-2xl p-6 mb-8 shadow-lg">
-                <p className="text-blue-700 font-medium">
-                  <strong className="text-blue-800">
-                    AI Generated Search Query:
-                  </strong>{" "}
-                  <span className="italic">{searchResults.query}</span>
-                </p>
+                <div className="space-y-3">
+                  <p className="text-blue-700 font-medium">
+                    <strong className="text-blue-800">
+                      AI Generated Search Query:
+                    </strong>{" "}
+                    <span className="italic font-mono text-sm bg-white/20 px-2 py-1 rounded border">
+                      {searchResults.query}
+                    </span>
+                  </p>
+
+                  {/* Display Active Filters */}
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    <span className="text-xs font-semibold text-blue-600">
+                      Active Filters:
+                    </span>
+                    <span className="inline-flex items-center px-2 py-1 bg-emerald-100/50 text-emerald-700 rounded-full text-xs font-medium border border-emerald-200/50">
+                      📅{" "}
+                      {filters.duration === "all"
+                        ? "All Time"
+                        : filters.duration === "1month"
+                        ? "Last Month"
+                        : filters.duration === "3months"
+                        ? "Last 3 Months"
+                        : filters.duration === "6months"
+                        ? "Last 6 Months"
+                        : filters.duration === "1year"
+                        ? "Last Year"
+                        : filters.duration === "2years"
+                        ? "Last 2 Years"
+                        : "Last 5 Years"}
+                    </span>
+                    <span className="inline-flex items-center px-2 py-1 bg-blue-100/50 text-blue-700 rounded-full text-xs font-medium border border-blue-200/50">
+                      📊 {filters.maxResults} papers
+                    </span>
+                    <span className="inline-flex items-center px-2 py-1 bg-purple-100/50 text-purple-700 rounded-full text-xs font-medium border border-purple-200/50">
+                      📈 Sort by{" "}
+                      {filters.sortBy === "relevance"
+                        ? "Relevance"
+                        : filters.sortBy === "lastUpdatedDate"
+                        ? "Date (Newest)"
+                        : "Submitted Date"}
+                    </span>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -984,17 +1073,63 @@ export default function Home() {
                       </div>
 
                       <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 mb-6 border border-white/20 shadow-lg">
-                        <h5 className="text-sm font-bold text-blue-700 mb-3 flex items-center gap-2">
-                          <div className="w-6 h-6 bg-gradient-to-br from-blue-400 to-purple-500 rounded-xl flex items-center justify-center">
-                            <FileText className="w-3 h-3 text-white" />
-                          </div>
-                          Abstract
-                        </h5>
-                        <p className="text-emerald-800 text-sm leading-relaxed font-medium">
-                          {paper.summary.length > 400
-                            ? `${paper.summary.substring(0, 400)}...`
-                            : paper.summary}
-                        </p>
+                        <div className="flex items-center justify-between mb-3">
+                          <h5 className="text-sm font-bold text-blue-700 flex items-center gap-2">
+                            <div className="w-6 h-6 bg-gradient-to-br from-blue-400 to-purple-500 rounded-xl flex items-center justify-center">
+                              <FileText className="w-3 h-3 text-white" />
+                            </div>
+                            {paperSummaries[paper.id]
+                              ? "AI Summary"
+                              : "Abstract"}
+                          </h5>
+                          {!paperSummaries[paper.id] && (
+                            <button
+                              onClick={() => generatePaperSummary(paper)}
+                              disabled={generatingSummary === paper.id}
+                              className="flex items-center gap-2 px-3 py-1.5 bg-purple-400/20 text-purple-700 rounded-full text-xs font-semibold hover:bg-purple-400/30 transition-all backdrop-blur-sm border border-purple-200/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {generatingSummary === paper.id ? (
+                                <>
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                  Generating...
+                                </>
+                              ) : (
+                                <>✨ Make it Engaging</>
+                              )}
+                            </button>
+                          )}
+                        </div>
+                        <div className="text-emerald-800 text-sm leading-relaxed font-medium">
+                          {paperSummaries[paper.id] ? (
+                            <div
+                              className="space-y-2 whitespace-pre-line emoji-text"
+                              dangerouslySetInnerHTML={{
+                                __html: paperSummaries[paper.id]
+                                  .replace(
+                                    /<code>(.*?)<\/code>/g,
+                                    '<span class="highlight-code">$1</span>'
+                                  )
+                                  .replace(
+                                    /<tech>(.*?)<\/tech>/g,
+                                    '<span class="highlight-tech">$1</span>'
+                                  )
+                                  .replace(
+                                    /<metric>(.*?)<\/metric>/g,
+                                    '<span class="highlight-metric">$1</span>'
+                                  )
+                                  .replace(
+                                    /<algo>(.*?)<\/algo>/g,
+                                    '<span class="highlight-algorithm">$1</span>'
+                                  )
+                                  .replace(/\n/g, "<br/>"),
+                              }}
+                            />
+                          ) : paper.summary.length > 400 ? (
+                            `${paper.summary.substring(0, 400)}...`
+                          ) : (
+                            paper.summary
+                          )}
+                        </div>
                       </div>
 
                       {/* Action Buttons */}
@@ -1066,21 +1201,30 @@ export default function Home() {
                               </div>
                               Researchers Found (
                               {
-                                paperAnalysisResults[paper.id].researchers
-                                  .length
+                                paperAnalysisResults[
+                                  paper.id
+                                ].researchers.filter(
+                                  (researcher) => researcher.google_scholar_info
+                                ).length
                               }
                               )
                             </h5>
 
-                            {paperAnalysisResults[paper.id].researchers
-                              .length === 0 ? (
+                            {paperAnalysisResults[paper.id].researchers.filter(
+                              (researcher) => researcher.google_scholar_info
+                            ).length === 0 ? (
                               <p className="text-blue-600/80 pb-6 font-medium">
-                                No researchers found in this paper.
+                                No researchers with available author details
+                                found in this paper.
                               </p>
                             ) : (
                               <div className="space-y-6 pb-6">
-                                {paperAnalysisResults[paper.id].researchers.map(
-                                  (researcher, idx) => (
+                                {paperAnalysisResults[paper.id].researchers
+                                  .filter(
+                                    (researcher) =>
+                                      researcher.google_scholar_info
+                                  )
+                                  .map((researcher, idx) => (
                                     <div
                                       key={idx}
                                       draggable
@@ -1114,34 +1258,27 @@ export default function Home() {
                                               {researcher.institution}
                                             </p>
                                           )}
-                                          {researcher.google_scholar_info ? (
-                                            <div className="text-sm text-slate-600 mb-2">
-                                              <GraduationCap className="w-4 h-4 inline mr-1" />
-                                              Author Profile Found
-                                              {researcher.google_scholar_info
-                                                .cited_by && (
-                                                <span className="ml-2 text-blue-600 font-medium">
-                                                  •{" "}
-                                                  {researcher.google_scholar_info.cited_by.toLocaleString()}{" "}
-                                                  citations
-                                                </span>
-                                              )}
-                                              {researcher.google_scholar_info
-                                                .title && (
-                                                <div className="text-xs text-slate-500 mt-1">
-                                                  {
-                                                    researcher
-                                                      .google_scholar_info.title
-                                                  }
-                                                </div>
-                                              )}
-                                            </div>
-                                          ) : (
-                                            <div className="text-xs text-slate-500 mb-2">
-                                              💡 Author details unavailable
-                                              (data service may be down)
-                                            </div>
-                                          )}
+                                          <div className="text-sm text-slate-600 mb-2">
+                                            <GraduationCap className="w-4 h-4 inline mr-1" />
+                                            Author Profile Found
+                                            {researcher.google_scholar_info!
+                                              .cited_by && (
+                                              <span className="ml-2 text-blue-600 font-medium">
+                                                •{" "}
+                                                {researcher.google_scholar_info!.cited_by.toLocaleString()}{" "}
+                                                citations
+                                              </span>
+                                            )}
+                                            {researcher.google_scholar_info!
+                                              .title && (
+                                              <div className="text-xs text-slate-500 mt-1">
+                                                {
+                                                  researcher.google_scholar_info!
+                                                    .title
+                                                }
+                                              </div>
+                                            )}
+                                          </div>
                                         </div>
                                       </div>
 
@@ -1415,8 +1552,7 @@ export default function Home() {
                                         )}
                                       </div>
                                     </div>
-                                  )
-                                )}
+                                  ))}
                               </div>
                             )}
                           </div>
